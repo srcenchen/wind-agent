@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md"],
+  "mcp": {
+    "goland": {
+      "type": "remote",
+      "url": "http://127.0.0.1:64422/sse",
+      "enabled": true,
+      "headers": {
+        "IJ_MCP_SERVER_PROJECT_PATH": "/Users/sanenchen/Desktop/Codes/Golang/wind-agent"
+      }
+    }
+  }
+}
