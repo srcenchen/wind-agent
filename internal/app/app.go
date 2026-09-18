@@ -3,32 +3,44 @@ package app
 import (
 	"context"
 	"wind-agent/internal/config"
+	"wind-agent/internal/core"
+	"wind-agent/internal/data"
+	"wind-agent/internal/service"
 	"wind-agent/internal/session"
 	"wind-agent/internal/transport/http_api"
+	"wind-agent/internal/transport/qqbot"
 
 	"golang.org/x/sync/errgroup"
 )
 
 type Application struct {
-	AppCfg *config.App
+	AppCfg config.App
+	Data   *data.Data
 }
 
-func New(appCfg *config.App) (*Application, error) {
-	return &Application{AppCfg: appCfg}, nil
+func New(appCfg config.App, d *data.Data) (*Application, error) {
+	return &Application{AppCfg: appCfg, Data: d}, nil
 }
 
 func Run(ctx context.Context, cfgPath string) error {
 	app, cleanup, err := InitApp(cfgPath)
-	defer cleanup()
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 	return app.run(ctx)
 }
 
 func (app *Application) run(ctx context.Context) error {
-	ag := session.NewAgent(app.AppCfg.Providers[0])
-	srvList := app.buildTransport(ag)
+	registry := core.NewRegistry(app.AppCfg.Providers)
+
+	var toolList []core.Tool
+	toolReg := core.NewToolRegistry(toolList...)
+
+	ag := session.NewAgent(registry, toolReg, app.Data.Session)
+	svc := service.NewSessionService(app.Data.Session, ag)
+
+	srvList := app.buildTransport(svc)
 	g, ctx := errgroup.WithContext(ctx)
 	for _, srv := range srvList {
 		g.Go(func() error {
@@ -42,11 +54,22 @@ type Server interface {
 	Run(ctx context.Context) error
 }
 
-func (app *Application) buildTransport(ag *session.Agent) []Server {
+func (app *Application) buildTransport(svc *service.SessionService) []Server {
 	var srv []Server
 	tCfg := app.AppCfg.Transports
 	if tCfg.HTTP.Enable {
-		srv = append(srv, http_api.NewServer(ag, &tCfg.HTTP.Address))
+		srv = append(srv, http_api.NewServer(svc, tCfg.HTTP.Address))
+	}
+	if tCfg.QQ.Enable {
+		client := qqbot.NewClient(qqbot.ClientConfig{
+			AppID:  tCfg.QQ.AppID,
+			Secret: tCfg.QQ.Secret,
+		})
+		srv = append(srv, qqbot.NewGateway(svc, client, qqbot.Config{
+			Enable: true,
+			AppID:  tCfg.QQ.AppID,
+			Secret: tCfg.QQ.Secret,
+		}))
 	}
 	return srv
 }

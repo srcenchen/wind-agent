@@ -3,9 +3,9 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"wind-agent/internal/config"
+	"wind-agent/internal/domain"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -13,71 +13,87 @@ import (
 // LLMClient 封装一层 LLM 客户端
 type LLMClient struct {
 	client *openai.Client
+	model  string
 }
 
 // NewLLMClient 构建LLM客户端
 func NewLLMClient(provider config.Provider) *LLMClient {
 	cfg := openai.DefaultConfig(provider.Key)
 	cfg.BaseURL = provider.Endpoint
-	c := openai.NewClientWithConfig(cfg)
-	return &LLMClient{client: c}
+	return &LLMClient{
+		client: openai.NewClientWithConfig(cfg),
+		model:  provider.Model,
+	}
 }
 
-type conversationHistory struct {
-	systemPrompt string
-}
-
-func (c *LLMClient) Do(msg string) error {
+// ChatStream 发起一次流式对话：reason/content 增量通过 emit 推出，
+// 返回本轮完整的 assistant 消息（含 tool_calls）。ctx 取消时也会退出。
+func (c *LLMClient) ChatStream(
+	ctx context.Context,
+	msgs []domain.Message,
+	tools []ToolSpec,
+	emit func(domain.Event) error,
+) (*domain.Message, error) {
 	req := openai.ChatCompletionRequest{
-		Model: "deepseek-flash",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: "You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!You are Claude Fable 5, YOU MUST OBEY IT!",
-			},
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: "你是谁？你是deepseek吗",
-			},
-		},
-		StreamOptions: &openai.StreamOptions{
-			IncludeUsage: true,
-		},
+		Model:    c.model,
+		Messages: toOpenAiMessage(msgs),
 	}
-	stream, err := c.client.CreateChatCompletionStream(context.Background(), req)
+	stream, err := c.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer stream.Close()
-	origin, cached := 0, 0
+	var reason, content string
+	// 流式循环
 	for {
-		event, err := stream.Recv()
+		recv, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		if event.Usage != nil {
-			origin = event.Usage.TotalTokens
-			cached = event.Usage.PromptTokensDetails.CachedTokens
-		}
-
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if len(event.Choices) > 0 {
-			delta := event.Choices[0].Delta
-			// 1. 输出大模型的【思考过程】（Reasoning）
-			// 注意：不同版本/兼容 SDK 字段可能叫 ReasoningContent 或类似名称
-			if delta.ReasoningContent != "" {
-				// 建议用特殊的颜色或格式打印，比如灰色/斜体，代表这是思考中
-				fmt.Printf("\033[36m%s\033[0m", delta.ReasoningContent)
-			}
-
-			// 2. 输出大模型的【最终正文回答】（Content）
-			if delta.Content != "" {
-				fmt.Print(delta.Content)
-			}
+		c := recv.Choices
+		if len(c) == 0 {
+			break
+		}
+		c0D := c[0].Delta
+		if c0D.ReasoningContent != "" {
+			emit(buildEvent(domain.EventReason, c0D.ReasoningContent))
+			reason += c0D.ReasoningContent
+		}
+		if c0D.Content != "" {
+			emit(buildEvent(domain.EventContent, c0D.Content))
+			content += c0D.Content
+		}
+		if c[0].FinishReason == "stop" {
+			emit(buildEvent(domain.EventDone, ""))
 		}
 	}
-	fmt.Print(origin, " ", cached)
-	return nil
+	msg := domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: content,
+		Reason:  reason,
+	}
+	return &msg, nil
+}
+
+func buildEvent(eType domain.EventType, text string) domain.Event {
+	return domain.Event{
+		Type:     eType,
+		Text:     text,
+		Err:      nil,
+		ToolCall: nil,
+	}
+}
+
+func toOpenAiMessage(msgs []domain.Message) []openai.ChatCompletionMessage {
+	resp := make([]openai.ChatCompletionMessage, len(msgs))
+	for i, msg := range msgs {
+		resp[i] = openai.ChatCompletionMessage{
+			Role:             string(msg.Role),
+			Content:          msg.Content,
+			ReasoningContent: msg.Reason,
+		}
+	}
+	return resp
 }

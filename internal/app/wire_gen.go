@@ -8,6 +8,7 @@ package app
 
 import (
 	"wind-agent/internal/config"
+	"wind-agent/internal/data"
 )
 
 // Injectors from wire.go:
@@ -17,7 +18,11 @@ func InitApp(cfgPath string) (*Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	application, err := New(app)
+	dataData, err := data.NewData(app)
+	if err != nil {
+		return nil, nil, err
+	}
+	application, err := New(app, dataData)
 	if err != nil {
 		return nil, nil, err
 	}

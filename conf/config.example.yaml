@@ -1,0 +1,27 @@
+app:
+  database:
+    driver: sqlite
+    connection: ./resource/sqlite.db
+  providers:
+    -
+      name: deepseek
+      id: deepseek
+      protocol: openai
+      endpoint: https://api.deepseek.com
+      key: your-deepseek-api-key
+      model: deepseek-flash
+
+  weather:
+    # host 留空则用 https://devapi.qweather.com；新版控制台有专属 API Host 时填完整地址
+    # host: https://xxxx.re.qweatherapi.com
+    geo_host: https://geoapi.qweather.com
+    key: your-qweather-api-key
+
+  transports:
+    http:
+      enable: true
+      address: 0.0.0.0:18888
+    qq:
+      enable: true
+      app_id: "your-qq-app-id"
+      secret: your-qq-secret
