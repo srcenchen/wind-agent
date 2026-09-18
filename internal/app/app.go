@@ -4,6 +4,7 @@ import (
 	"context"
 	"wind-agent/internal/config"
 	"wind-agent/internal/core"
+	"wind-agent/internal/core/tools"
 	"wind-agent/internal/data"
 	"wind-agent/internal/service"
 	"wind-agent/internal/session"
@@ -34,7 +35,16 @@ func Run(ctx context.Context, cfgPath string) error {
 func (app *Application) run(ctx context.Context) error {
 	registry := core.NewRegistry(app.AppCfg.Providers)
 
+	// 工具注入
+	w := app.AppCfg.Weather
 	var toolList []core.Tool
+	toolList = append(toolList, tools.Bash{})
+	toolList = append(toolList, tools.WebSearch{})
+	toolList = append(toolList, tools.Weather{
+		Host:    w.Host,
+		GeoHost: w.GeoHost,
+		Key:     w.Key,
+	})
 	toolReg := core.NewToolRegistry(toolList...)
 
 	ag := session.NewAgent(registry, toolReg, app.Data.Session)

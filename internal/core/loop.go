@@ -18,7 +18,7 @@ type LLM interface {
 }
 
 // maxSteps 限制一次对话里「推理→调工具」的最大轮数，防止模型死循环。
-const maxSteps = 6
+const maxSteps = 128
 
 // AgentLoop 推理循环（ReAct）：反复调 LLM，直到没有 tool_calls 为止。
 type AgentLoop struct {

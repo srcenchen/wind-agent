@@ -10,6 +10,7 @@ type App struct {
 	Providers  []Provider `yaml:"providers"`
 	Transports Transport  `yaml:"transports"`
 	Database   Database   `yaml:"database"`
+	Weather    Weather    `yaml:"weather"`
 }
 
 func Load(cfgPath string) (App, error) {
