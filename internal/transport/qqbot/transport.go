@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 
 	"wind-agent/internal/domain"
@@ -63,8 +64,15 @@ func (t *turnTransport) Close() error {
 	case ReplyC2C:
 		return t.msgr.ReplyC2C(ctx, t.reply.OpenID, t.reply.MsgID, text)
 	case ReplyGroup:
-		return t.msgr.ReplyGroup(ctx, t.reply.OpenID, t.reply.MsgID, text)
+		return t.msgr.ReplyGroup(ctx, t.reply.OpenID, t.reply.MsgID, renderMentions(text))
 	default:
 		return errors.New("unknown qq reply kind")
 	}
+}
+
+// outboundMentionRE 匹配模型输出的 @[用户id]，转成 QQ 的 <@用户id> 提及格式。
+var outboundMentionRE = regexp.MustCompile(`@\[([^\]]+)\]`)
+
+func renderMentions(text string) string {
+	return outboundMentionRE.ReplaceAllString(text, "<@$1>")
 }

@@ -43,7 +43,7 @@ func gormBuild(dbCfg config.Database) (*gorm.DB, error) {
 		return nil, err
 	}
 	// AutoMigrate
-	err = db.AutoMigrate(&model.Session{})
+	err = db.AutoMigrate(&model.Session{}, &model.SessionMessage{})
 	if err != nil {
 		return nil, err
 	}

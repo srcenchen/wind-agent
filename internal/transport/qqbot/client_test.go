@@ -46,7 +46,9 @@ func TestClientRepliesC2CWithAccessToken(t *testing.T) {
 	if gotPath != "/v2/users/UOPEN/messages" {
 		t.Fatalf("path=%s", gotPath)
 	}
-	if !strings.Contains(gotBody, `"content":"你好"`) || !strings.Contains(gotBody, `"msg_id":"MSGID"`) {
+	if !strings.Contains(gotBody, `"msg_type":2`) ||
+		!strings.Contains(gotBody, `"markdown":{"content":"你好"}`) ||
+		!strings.Contains(gotBody, `"msg_id":"MSGID"`) {
 		t.Fatalf("body=%s", gotBody)
 	}
 }

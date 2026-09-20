@@ -99,8 +99,8 @@ func (c *Client) postMessage(ctx context.Context, path, msgID, content string) e
 		return err
 	}
 	body, err := json.Marshal(map[string]any{
-		"content":  content,
-		"msg_type": 0,
+		"msg_type": 2,
+		"markdown": map[string]any{"content": content},
 		"msg_id":   msgID,
 		"msg_seq":  1,
 	})

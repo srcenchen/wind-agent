@@ -110,6 +110,32 @@ func TestQQTransportGroupReply(t *testing.T) {
 	}
 }
 
+func TestQQTransportGroupRendersMentions(t *testing.T) {
+	msgr := &fakeMessenger{}
+	in := domain.Inbound{SessionId: "qq:group:g", Content: "hi", Speaker: "U1"}
+	tr := newTurnTransport(in, ReplyTarget{Kind: ReplyGroup, OpenID: "g", MsgID: "mid"}, msgr)
+	ctx := context.Background()
+	_ = tr.Emit(ctx, domain.Event{Type: domain.EventContent, Text: "你好 @[U2] 和 @[U3]"})
+	if err := tr.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(msgr.group) != 1 || msgr.group[0].Content != "你好 <@U2> 和 <@U3>" {
+		t.Fatalf("%+v", msgr.group)
+	}
+}
+
+func TestQQTransportC2CKeepsTextUnchanged(t *testing.T) {
+	msgr := &fakeMessenger{}
+	tr := newTurnTransport(domain.Inbound{Content: "hi"}, ReplyTarget{Kind: ReplyC2C, OpenID: "u", MsgID: "mid"}, msgr)
+	_ = tr.Emit(context.Background(), domain.Event{Type: domain.EventContent, Text: "@[U2] 你好"})
+	if err := tr.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(msgr.c2c) != 1 || msgr.c2c[0].Content != "@[U2] 你好" {
+		t.Fatalf("%+v", msgr.c2c)
+	}
+}
+
 func TestQQTransportCloseWithoutTextDoesNotSend(t *testing.T) {
 	msgr := &fakeMessenger{}
 	tr := newTurnTransport(domain.Inbound{Content: "x"}, ReplyTarget{Kind: ReplyC2C, OpenID: "u", MsgID: "m"}, msgr)
